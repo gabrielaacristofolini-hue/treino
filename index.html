@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0a0b">
+  <title>Treino</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <main class="pagina">
+    <header class="topo">
+      <div>
+        <h1>Treino</h1>
+        <p class="sub" id="status"></p>
+      </div>
+      <p class="hoje" id="hoje"></p>
+    </header>
+
+    <section class="bento" id="bento" aria-label="Resumo"></section>
+
+    <section class="card" aria-labelledby="t-cal">
+      <div class="card-topo">
+        <h2 id="t-cal">Calendário</h2>
+        <ul class="legenda" id="leg-cal"></ul>
+      </div>
+      <div class="meses" id="meses"></div>
+    </section>
+
+    <section class="bloco" aria-labelledby="t-treinos">
+      <div class="bloco-topo">
+        <h2 id="t-treinos">Treinos</h2>
+        <p class="nota" id="regra"></p>
+      </div>
+      <div class="treinos" id="treinos"></div>
+    </section>
+
+    <section class="bloco" aria-labelledby="t-freq">
+      <div class="bloco-topo">
+        <h2 id="t-freq">Frequência</h2>
+      </div>
+      <div class="card" id="periodo"></div>
+      <div class="freq">
+        <div class="card" id="mes"></div>
+        <div class="card" id="semanas"></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="t-hist">
+      <div class="card-topo">
+        <h2 id="t-hist">Histórico</h2>
+      </div>
+      <div class="tabela-wrap" id="historico"></div>
+    </section>
+
+    <footer class="rodape" id="rodape"></footer>
+  </main>
+
+  <div class="tip" id="tip" role="tooltip" hidden></div>
+
+  <script src="dados/treinos.js"></script>
+  <script src="js/corpo.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
