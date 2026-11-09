@@ -167,12 +167,7 @@
   function treinos() {
     var h = "";
     ["A", "B"].forEach(function (k) {
-      var t = D.treinos[k], ativos = {};
-      t.exercicios.forEach(function (e) {
-        (e.apoio || []).forEach(function (m) { if (!ativos[m]) ativos[m] = "a"; });
-      });
-      t.exercicios.forEach(function (e) { e.musculos.forEach(function (m) { ativos[m] = "p"; }); });
-
+      var t = D.treinos[k];
       var linhas = t.exercicios.map(function (e) {
         var c = ultimaCarga(e.id);
         return '<tr data-ex="' + e.id + '" tabindex="0"><td><span class="nome">' + e.nome + "</span>" +
@@ -188,8 +183,7 @@
         '<div class="treino-topo"><span class="letra" style="background:' + COR[k] + '">' + k + "</span>" +
         "<div><h3>" + t.nome + "</h3><p>" + t.foco + "</p></div>" +
         (k === proximo ? '<span class="chip">Próximo</span>' : "") + "</div>" +
-        '<div class="corpo">' + Corpo.svg("frente", ativos, t.nome + ", vista de frente") +
-        Corpo.svg("costas", ativos, t.nome + ", vista de costas") + "</div>" +
+        '<div class="corpo">' + Corpo.html(t.nome + ": músculos trabalhados, de frente e de costas") + "</div>" +
         '<div class="leg-corpo"><span><i class="sw" style="background:' + COR[k] + '"></i>principal</span>' +
         '<span><i class="sw" style="background:' + COR[k] + ';opacity:.38"></i>auxiliar</span></div>' +
         '<table class="exs"><thead><tr><th>Exercício</th><th>Séries</th><th>Última carga</th></tr></thead><tbody>' +
@@ -197,23 +191,25 @@
     });
     el("treinos").innerHTML = h;
 
+    var est = getComputedStyle(document.documentElement);
+    var HEX = { A: est.getPropertyValue("--a").trim(), B: est.getPropertyValue("--b").trim() };
+    function ativosDe(lista) {
+      var r = {};
+      lista.forEach(function (e) { (e.apoio || []).forEach(function (m) { if (!r[m]) r[m] = "a"; }); });
+      lista.forEach(function (e) { e.musculos.forEach(function (m) { r[m] = "p"; }); });
+      return r;
+    }
+    Array.prototype.forEach.call(el("treinos").querySelectorAll(".treino"), function (card) {
+      var k = card.getAttribute("data-t");
+      Corpo.pintar(card.querySelector("canvas"), ativosDe(D.treinos[k].exercicios), HEX[k]);
+    });
+
     // Passar o dedo/mouse num exercício acende só os músculos dele.
     Array.prototype.forEach.call(el("treinos").querySelectorAll("tr[data-ex]"), function (tr) {
-      var card = tr.closest(".treino"), e = EX[tr.getAttribute("data-ex")];
-      function on() {
-        card.classList.add("focando");
-        Array.prototype.forEach.call(card.querySelectorAll(".fig .mu"), function (p) {
-          var m = p.getAttribute("data-m");
-          p.classList.toggle("foco-p", e.musculos.indexOf(m) >= 0);
-          p.classList.toggle("foco-a", e.musculos.indexOf(m) < 0 && (e.apoio || []).indexOf(m) >= 0);
-        });
-      }
-      function off() {
-        card.classList.remove("focando");
-        Array.prototype.forEach.call(card.querySelectorAll(".foco-p, .foco-a"), function (p) {
-          p.classList.remove("foco-p", "foco-a");
-        });
-      }
+      var card = tr.closest(".treino"), k = card.getAttribute("data-t"), e = EX[tr.getAttribute("data-ex")];
+      var canvas = card.querySelector("canvas");
+      function on() { Corpo.pintar(canvas, ativosDe([e]), HEX[k]); }
+      function off() { Corpo.pintar(canvas, ativosDe(D.treinos[k].exercicios), HEX[k]); }
       tr.addEventListener("pointerenter", on);
       tr.addEventListener("pointerleave", off);
       tr.addEventListener("focus", on);

@@ -1,75 +1,187 @@
-// Mapa muscular em SVG, desenhado em planos (frente e costas).
-// Só a metade esquerda é desenhada; a direita é o espelho.
+// Mapa muscular a partir da ilustração em img/corpo.webp (frente e costas).
+// A ilustração é pintada em planos de cor chapada com contorno escuro. No navegador,
+// cada músculo é encontrado preenchendo a área de cor a partir de "sementes"
+// (pontos dentro dele) e a figura é repintada: cinza no tema escuro e com a cor do treino
+// nos músculos trabalhados.
 (function () {
   "use strict";
 
-  // m = músculo (null = só silhueta). linha = traço de separação interno.
-  // Cabeça e pescoço são desenhados inteiros (sem espelho, para não ficar com emenda).
-  var CABECA = '<path class="pl" d="M100 8C86 8 80 19 80 33C80 47 88 60 100 62C112 60 120 47 120 33C120 19 114 8 100 8Z"/>';
-  var PESCOCO_F = '<path class="pl" d="M91 56L91 72L100 76L109 72L109 56Z"/>';
-  var PESCOCO_C = '<path class="pl" d="M91 54L91 66L100 61L109 66L109 54Z"/>';
+  // Recorte da imagem original (1125 x 2000) onde estão as duas figuras.
+  var RECORTE = { x: 70, y: 340, w: 982, h: 1420 };
+  var ESCALA = 0.7; // resolução de trabalho (suficiente para telas 2x)
 
-  var FRENTE = [
-    { m: "trapezio", d: "M90 66L66 80L92 79Z" },
-    { m: "ombro", d: "M64 82C50 82 41 92 38 108C37 117 39 124 42 129C50 125 56 115 60 105C64 96 68 88 72 84Z" },
-    { m: "peito", d: "M99 84L76 84C68 92 62 104 62 118C70 128 86 132 99 128Z" },
-    { m: "biceps", d: "M44 133C38 147 37 162 40 174C48 176 55 168 58 154C60 142 60 128 59 119C55 125 49 130 44 133Z" },
-    { m: "antebraco", d: "M40 180C33 198 29 222 29 244L39 247C46 226 53 204 57 181C51 183 45 182 40 180Z" },
-    { d: "M29 250L39 253C41 261 40 270 37 278C32 280 28 276 27 268C27 260 28 254 29 250Z" },
-    { m: "abdomen", d: "M99 134L80 134C79 158 79 182 80 200C85 212 91 220 99 226Z" },
-    { m: "abdomen", d: "M75 132C69 130 65 128 62 126C63 146 64 170 63 190C66 198 70 204 75 208C75 184 75 158 75 132Z" },
-    { d: "M77 212L99 230L99 238Z" },
-    { m: "quadriceps", d: "M75 211C64 224 59 248 59 276C59 294 61 308 64 318L93 318C95 296 97 272 97 252C97 246 96 241 95 238C88 230 81 221 75 211Z" },
-    { d: "M64 322L92 322C92 330 90 338 86 344L70 344C66 338 64 330 64 322Z" },
-    { m: "panturrilha", d: "M64 348C59 366 61 386 68 404L80 404C86 384 91 366 90 348Z" },
-    { d: "M67 408L81 408C84 412 86 418 86 424L60 424C61 418 64 412 67 408Z" }
-  ];
-  var FRENTE_LINHAS = [
-    "M80 158L99 157", "M80 181L99 180", "M79 232C75 258 76 290 82 316"
-  ];
+  // Sementes em coordenadas do recorte (pixels da imagem original - 70, - 340).
+  // Frente: x < 470. Costas: x > 500.
+  var SEMENTES = {
+    trapezio: [[130, 225], [300, 225], [700, 280], [800, 280], [750, 350], [760, 150]],
+    ombro: [[85, 295], [365, 285], [610, 280], [890, 280]],
+    peito: [[170, 275], [215, 320], [260, 300], [320, 290], [340, 335], [250, 345]],
+    biceps: [[35, 360], [85, 395], [60, 400], [370, 380], [375, 420]],
+    triceps: [[600, 360], [575, 390], [910, 350], [935, 420], [890, 410]],
+    antebraco: [[45, 500], [30, 600], [85, 520], [400, 540], [372, 530], [540, 470], [530, 560], [590, 520], [910, 520], [935, 560], [900, 470]],
+    // terceiro número = tolerância de cor própria (áreas com textura no desenho)
+    costas: [[685, 300], [690, 340], [870, 355, 95], [850, 320], [710, 420], [850, 420, 95]],
+    lombar: [[780, 520], [720, 490]],
+    abdomen: [[250, 440], [300, 440], [240, 500], [300, 500], [250, 570], [300, 570], [270, 640], [180, 480], [195, 560], [660, 500], [815, 520]],
+    gluteo: [[710, 680], [820, 690], [650, 700], [700, 740]],
+    quadriceps: [[160, 800], [215, 850], [175, 930], [330, 760], [320, 880], [290, 950],
+      [170, 760], [190, 820], [215, 880], [180, 960], [225, 800], [150, 900],
+      [320, 700], [335, 800], [315, 850], [300, 930], [340, 900]],
+    posterior: [[695, 880], [730, 900], [825, 900], [790, 880], [705, 960]],
+    panturrilha: [[115, 1100], [215, 1120], [735, 1150], [815, 1150], [760, 1180], [840, 1130], [720, 1100]]
+  };
+  // Onde a ilustração não tem traço separando duas áreas parecidas, limita a altura (y mín., y máx.).
+  var LIMITE = { quadriceps: [600, 1000], ombro: [200, 345] };
 
-  var COSTAS = [
-    { m: "trapezio", d: "M100 58L90 64L64 80C74 88 84 97 90 112C94 126 97 138 100 148Z" },
-    { m: "ombro", d: "M64 82C50 82 41 92 38 108C37 117 39 124 42 129C50 125 56 115 60 105C64 96 68 88 72 84Z" },
-    { m: "costas", d: "M67 88C63 96 62 105 65 113C73 112 80 110 87 108C83 99 76 92 67 88Z" },
-    { m: "costas", d: "M65 118C65 140 70 164 78 186C84 192 90 194 96 195C96 177 94 158 92 140C90 129 89 119 88 113C80 115 72 117 65 118Z" },
-    { m: "lombar", d: "M99 152L97 198L83 201L99 212Z" },
-    { m: "triceps", d: "M44 133C38 147 37 162 40 174C48 176 55 168 58 154C60 142 60 128 59 119C55 125 49 130 44 133Z" },
-    { m: "antebraco", d: "M40 180C33 198 29 222 29 244L39 247C46 226 53 204 57 181C51 183 45 182 40 180Z" },
-    { d: "M29 250L39 253C41 261 40 270 37 278C32 280 28 276 27 268C27 260 28 254 29 250Z" },
-    { m: "abdomen", d: "M63 124C64 146 65 170 65 190C68 198 73 204 79 207C72 186 66 158 63 124Z" },
-    { m: "gluteo", d: "M99 216C88 207 73 207 65 219C60 232 62 248 70 256C80 262 92 260 99 254Z" },
-    { m: "posterior", d: "M64 262C60 280 60 300 64 322L93 322C96 302 97 282 96 262C86 266 74 266 64 262Z" },
-    { d: "M64 326L93 326L90 336L67 336Z" },
-    { m: "panturrilha", d: "M64 340C56 356 58 374 66 388C72 392 82 392 88 388C96 372 96 354 90 340Z" },
-    { d: "M70 392L84 392L82 410L72 410Z" },
-    { d: "M68 412L84 412L86 424L64 424Z" }
-  ];
-  var COSTAS_LINHAS = ["M79 267L79 320", "M77 343L77 388"];
+  var W = Math.round(RECORTE.w * ESCALA), H = Math.round(RECORTE.h * ESCALA), N = W * H;
+  var base = null;      // Uint8ClampedArray RGBA da figura em cinza
+  var lumi = null;      // luminância original de cada pixel (0-255)
+  var musculo = null;   // Int8Array: índice do músculo de cada pixel (-1 = nenhum)
+  var NOMES = Object.keys(SEMENTES);
+  var pronto = null;
 
-  function desenhar(partes, linhas, ativos, centro) {
-    var meia = partes.map(function (p) {
-      var cls = "pl", dado = "";
-      if (p.m) {
-        var nivel = ativos[p.m];
-        cls = "mu" + (nivel === "p" ? " pri" : nivel === "a" ? " apo" : "");
-        dado = ' data-m="' + p.m + '"';
-      }
-      return '<path class="' + cls + '"' + dado + ' d="' + p.d + '"/>';
-    }).join("") + linhas.map(function (d) {
-      return '<path class="ln" d="' + d + '"/>';
-    }).join("");
-    return centro + "<g>" + meia + '</g><g transform="matrix(-1 0 0 1 200 0)">' + meia + "</g>";
+  function hex(c) {
+    c = c.trim().replace("#", "");
+    return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
   }
 
-  // ativos: { musculo: "p" (principal) | "a" (auxiliar) }
+  function processar(img) {
+    var cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    var cx = cv.getContext("2d", { willReadFrequently: true });
+    cx.fillStyle = "#fff";
+    cx.fillRect(0, 0, W, H);
+    cx.drawImage(img, RECORTE.x, RECORTE.y, RECORTE.w, RECORTE.h, 0, 0, W, H);
+    var d = cx.getImageData(0, 0, W, H).data;
+
+    lumi = new Uint8Array(N);
+    for (var i = 0; i < N; i++) lumi[i] = 0.3 * d[i * 4] + 0.59 * d[i * 4 + 1] + 0.11 * d[i * 4 + 2];
+
+    function vizinhos(p) {
+      var x = p % W, r = [];
+      if (x > 0) r.push(p - 1);
+      if (x < W - 1) r.push(p + 1);
+      if (p >= W) r.push(p - W);
+      if (p < N - W) r.push(p + W);
+      return r;
+    }
+    function difer(a, b) {
+      return Math.abs(d[a * 4] - d[b * 4]) + Math.abs(d[a * 4 + 1] - d[b * 4 + 1]) + Math.abs(d[a * 4 + 2] - d[b * 4 + 2]);
+    }
+    function claroNeutro(p) {
+      var r = d[p * 4], g = d[p * 4 + 1], b = d[p * 4 + 2];
+      return lumi[p] > 225 && Math.max(r, g, b) - Math.min(r, g, b) < 22;
+    }
+
+    // 1) Fundo: branco ligado às bordas.
+    var fundo = new Uint8Array(N), pilha = [];
+    for (var x = 0; x < W; x++) { pilha.push(x, N - W + x); }
+    for (var y = 0; y < H; y++) { pilha.push(y * W, y * W + W - 1); }
+    pilha = pilha.filter(claroNeutro);
+    pilha.forEach(function (p) { fundo[p] = 1; });
+    while (pilha.length) {
+      var p = pilha.pop();
+      vizinhos(p).forEach(function (q) {
+        if (!fundo[q] && claroNeutro(q)) { fundo[q] = 1; pilha.push(q); }
+      });
+    }
+
+    // 2) Músculos: cresce cada área de cor a partir das sementes, parando no contorno.
+    musculo = new Int8Array(N).fill(-1);
+    NOMES.forEach(function (nome, k) {
+      SEMENTES[nome].forEach(function (s) {
+        var sx = Math.round(s[0] * ESCALA), sy = Math.round(s[1] * ESCALA), semente = -1;
+        for (var r = 0; r <= 4 && semente < 0; r++) {          // semente caiu num traço? procura ao lado
+          for (var dy = -r; dy <= r && semente < 0; dy++) for (var dx = -r; dx <= r && semente < 0; dx++) {
+            var q = (sy + dy) * W + sx + dx;
+            if (q >= 0 && q < N && lumi[q] >= 130 && !fundo[q]) semente = q;
+          }
+        }
+        if (semente < 0 || musculo[semente] >= 0) return;
+        var r0 = d[semente * 4], g0 = d[semente * 4 + 1], b0 = d[semente * 4 + 2];
+        var tol = s[2] || 55, passo = s[2] ? 45 : 30;
+        var lim = LIMITE[nome] ? [LIMITE[nome][0] * ESCALA * W, LIMITE[nome][1] * ESCALA * W] : [0, N];
+        var st = [semente];
+        musculo[semente] = k;
+        while (st.length) {
+          var p = st.pop();
+          vizinhos(p).forEach(function (q) {
+            if (musculo[q] >= 0 || fundo[q] || lumi[q] < 120 || q < lim[0] || q > lim[1]) return;
+            if (difer(p, q) > passo) return;
+            if (Math.abs(d[q * 4] - r0) + Math.abs(d[q * 4 + 1] - g0) + Math.abs(d[q * 4 + 2] - b0) > tol) return;
+            musculo[q] = k;
+            st.push(q);
+          });
+        }
+      });
+    });
+    // Engorda 1 px para cobrir a borda suavizada entre a cor e o traço.
+    var copia = Int8Array.from(musculo);
+    for (var p2 = 0; p2 < N; p2++) {
+      if (copia[p2] >= 0 || fundo[p2] || lumi[p2] < 90) continue;
+      var vz = vizinhos(p2);
+      for (var j = 0; j < vz.length; j++) if (copia[vz[j]] >= 0) { musculo[p2] = copia[vz[j]]; break; }
+    }
+
+    // 3) Base em cinza: traços viram vão (cor do fundo do quadro), planos viram tons de cinza.
+    var est = getComputedStyle(document.documentElement);
+    var vao = hex(est.getPropertyValue("--card-2") || "#1e1e21");
+    base = new Uint8ClampedArray(N * 4);
+    for (var i2 = 0; i2 < N; i2++) {
+      if (fundo[i2]) continue; // transparente
+      var L = lumi[i2];
+      var t = Math.min(1, Math.max(0, (L - 70) / 90));      // 0 = traço, 1 = plano
+      var cinza = 46 + Math.max(0, L - 150) * 0.22;          // planos claros ficam um pouco mais claros
+      base[i2 * 4] = vao[0] + (cinza - vao[0]) * t;
+      base[i2 * 4 + 1] = vao[1] + (cinza + 1 - vao[1]) * t;
+      base[i2 * 4 + 2] = vao[2] + (cinza + 5 - vao[2]) * t;
+      base[i2 * 4 + 3] = 255;
+    }
+  }
+
+  function carregar() {
+    if (!pronto) {
+      pronto = new Promise(function (ok, erro) {
+        var img = new Image();
+        img.onload = function () { processar(img); ok(); };
+        img.onerror = erro;
+        img.src = "img/corpo.webp";
+      });
+    }
+    return pronto;
+  }
+
+  // ativos: { musculo: "p" (principal) | "a" (auxiliar) }; cor: "#rrggbb"
+  function pintar(canvas, ativos, cor) {
+    var c = hex(cor);
+    var nivel = NOMES.map(function (n) { return ativos[n] === "p" ? 2 : ativos[n] === "a" ? 1 : 0; });
+    var cx = canvas.getContext("2d");
+    var out = cx.createImageData(W, H), o = out.data;
+    o.set(base);
+    for (var i = 0; i < N; i++) {
+      var k = musculo[i];
+      if (k < 0 || !nivel[k] || !o[i * 4 + 3]) continue;
+      var L = lumi[i];
+      var t = Math.min(1, Math.max(0, (L - 70) / 90));
+      var sombra = 0.8 + Math.max(0, L - 150) / 105 * 0.28;   // mantém os planos da ilustração
+      var forca = (nivel[k] === 2 ? 1 : 0.42) * t;
+      for (var ch = 0; ch < 3; ch++) {
+        o[i * 4 + ch] = o[i * 4 + ch] + (Math.min(255, c[ch] * sombra) - o[i * 4 + ch]) * forca;
+      }
+    }
+    cx.putImageData(out, 0, 0);
+  }
+
   window.Corpo = {
-    svg: function (vista, ativos, rotulo) {
-      var g = vista === "frente"
-        ? desenhar(FRENTE, FRENTE_LINHAS, ativos, CABECA + PESCOCO_F)
-        : desenhar(COSTAS, COSTAS_LINHAS, ativos, PESCOCO_C + CABECA);
-      return '<figure class="fig"><svg viewBox="0 0 200 430" role="img" aria-label="' + rotulo + '">' +
-        g + "</svg><figcaption>" + (vista === "frente" ? "frente" : "costas") + "</figcaption></figure>";
+    largura: W,
+    altura: H,
+    // Cria o quadro (canvas + legendas frente/costas) e pinta quando a imagem carregar.
+    html: function (rotulo) {
+      return '<figure class="fig"><canvas width="' + W + '" height="' + H + '" role="img" aria-label="' + rotulo + '"></canvas>' +
+        '<figcaption><span>frente</span><span>costas</span></figcaption></figure>';
+    },
+    pintar: function (canvas, ativos, cor) {
+      return carregar().then(function () { pintar(canvas, ativos, cor); });
     }
   };
 })();
